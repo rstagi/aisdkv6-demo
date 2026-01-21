@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { evalite } from "evalite";
-import { generateText, embed, Output } from "ai";
+import { generateText, Output } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
-import { query, close } from "./db.js";
+import { close } from "./db.js";
+import { answerWithKnowledge } from "./agent.js";
 
 const model = google("gemini-2.5-flash");
-const embeddingModel = google.textEmbeddingModel("text-embedding-004");
 
 const gradeScale = { A: 1.0, B: 0.75, C: 0.5, D: 0.25, E: 0.0 } as const;
 
@@ -14,36 +14,6 @@ const judgeSchema = z.object({
   grade: z.enum(["A", "B", "C", "D", "E"]),
   reasoning: z.string(),
 });
-
-// Search knowledge base (same as step 02)
-async function searchKnowledge(searchQuery: string): Promise<string> {
-  const { embedding } = await embed({
-    model: embeddingModel,
-    value: searchQuery,
-  });
-
-  const results = await query<{ title: string; content: string }>(
-    `SELECT title, content FROM documents ORDER BY embedding <-> $1 LIMIT 3`,
-    [JSON.stringify(embedding)]
-  );
-
-  return results.map((r) => `## ${r.title}\n${r.content}`).join("\n\n");
-}
-
-// RAG-based answering
-async function answerWithKnowledge(question: string): Promise<string> {
-  const context = await searchKnowledge(question);
-
-  const { text } = await generateText({
-    model,
-    system: `You are a helpful AI SDK documentation assistant.
-Answer the question based ONLY on the provided documentation.
-Be concise and accurate.`,
-    prompt: `Documentation:\n${context}\n\nQuestion: ${question}`,
-  });
-
-  return text;
-}
 
 function createLLMJudge(
   name: string,
@@ -108,6 +78,7 @@ evalite("Knowledge Retrieval", {
     {
       name: "Contains Expected",
       scorer: ({ output, expected }) => {
+        if (!expected) return 0;
         const contains = output.toLowerCase().includes(expected.toLowerCase());
         return contains ? 1 : 0;
       },
@@ -122,7 +93,7 @@ evalite("Knowledge Retrieval", {
     {
       name: "Reasonable Length",
       scorer: ({ output }) => {
-        const len = output.length;
+        const len = (output as string).length;
         // Good answer: 100-500 chars
         if (len >= 100 && len <= 500) return 1;
         if (len >= 50 && len <= 800) return 0.5;
