@@ -64,7 +64,7 @@ export default function Chat() {
                 if (part.type.startsWith("tool-")) {
                   const toolName = part.type.replace("tool-", "");
                   const state = "state" in part ? part.state : null;
-                  const result = "result" in part ? part.result : null;
+                  const output = "output" in part ? part.output : null;
 
                   // Show loading state (streaming or input phases)
                   if (
@@ -84,13 +84,10 @@ export default function Chat() {
                   }
 
                   // Show result with rich UI
-                  if (
-                    (state === "output-available" || state === "done") &&
-                    result !== null
-                  ) {
+                  if (state === "output-available" && output !== null) {
                     return (
                       <div key={i}>
-                        <ToolResultRenderer result={result} />
+                        <ToolResultRenderer result={output} />
                       </div>
                     );
                   }
