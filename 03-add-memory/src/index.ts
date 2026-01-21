@@ -1,4 +1,5 @@
 import "dotenv/config";
+import * as readline from "readline";
 import { ToolLoopAgent, tool, embed } from "ai";
 import { google } from "@ai-sdk/google";
 import { z } from "zod";
@@ -88,30 +89,51 @@ Always check memories first when answering personal questions.`,
   tools: { searchKnowledge, remember, recall, listMemories },
 });
 
-async function main() {
-  console.log("=== Memory Agent Demo ===\n");
+async function chat() {
+  console.log("\n╔════════════════════════════════════════════╗");
+  console.log("║     AI SDK Assistant with Memory           ║");
+  console.log("╠════════════════════════════════════════════╣");
+  console.log("║  I can remember things across our chat!    ║");
+  console.log("║  Try: 'My name is Alex'                    ║");
+  console.log("║  Then: 'What's my name?'                   ║");
+  console.log("║                                            ║");
+  console.log("║  Type 'exit' or 'quit' to end              ║");
+  console.log("╚════════════════════════════════════════════╝\n");
 
-  // First interaction: store a preference
-  console.log("--- Turn 1: Storing a preference ---\n");
-  console.log("User: My name is Alice and I prefer TypeScript examples.\n");
-
-  const turn1 = await researchAgent.generate({
-    prompt: "My name is Alice and I prefer TypeScript examples.",
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
   });
-  console.log("\nAgent:", turn1.text, "\n");
 
-  // Second interaction: use the memory
-  console.log("\n--- Turn 2: Using the memory ---\n");
-  console.log("User: What's my name and how do I use streamText?\n");
+  const prompt = () => {
+    rl.question("\x1b[36mYou:\x1b[0m ", async (input) => {
+      const trimmed = input.trim();
 
-  const turn2 = await researchAgent.generate({
-    prompt: "What's my name and how do I use streamText?",
-  });
-  console.log("\nAgent:", turn2.text, "\n");
+      if (!trimmed) {
+        prompt();
+        return;
+      }
 
-  // Cleanup
-  await closeDb();
-  await closeRedis();
+      if (trimmed.toLowerCase() === "exit" || trimmed.toLowerCase() === "quit") {
+        console.log("\n\x1b[33mGoodbye!\x1b[0m\n");
+        rl.close();
+        await closeDb();
+        await closeRedis();
+        process.exit(0);
+      }
+
+      try {
+        const result = await researchAgent.generate({ prompt: trimmed });
+        console.log(`\n\x1b[32mAssistant:\x1b[0m ${result.text}\n`);
+      } catch (error) {
+        console.error("\n\x1b[31mError:\x1b[0m", error);
+      }
+
+      prompt();
+    });
+  };
+
+  prompt();
 }
 
-main().catch(console.error);
+chat().catch(console.error);

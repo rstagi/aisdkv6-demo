@@ -1,11 +1,19 @@
 import "dotenv/config";
 import { evalite } from "evalite";
-import { generateText, embed } from "ai";
+import { generateText, embed, Output } from "ai";
 import { google } from "@ai-sdk/google";
+import { z } from "zod";
 import { query, close } from "./db.js";
 
 const model = google("gemini-2.5-flash");
 const embeddingModel = google.textEmbeddingModel("text-embedding-004");
+
+const gradeScale = { A: 1.0, B: 0.75, C: 0.5, D: 0.25, E: 0.0 } as const;
+
+const judgeSchema = z.object({
+  grade: z.enum(["A", "B", "C", "D", "E"]),
+  reasoning: z.string(),
+});
 
 // Search knowledge base (same as step 02)
 async function searchKnowledge(searchQuery: string): Promise<string> {
@@ -35,6 +43,34 @@ Be concise and accurate.`,
   });
 
   return text;
+}
+
+function createLLMJudge(
+  name: string,
+  buildPrompt: (input: string, output: string, expected?: string) => string
+) {
+  return {
+    name,
+    scorer: async ({
+      input,
+      output,
+      expected,
+    }: {
+      input: string;
+      output: string;
+      expected?: string;
+    }) => {
+      const { output: judgment } = await generateText({
+        model,
+        prompt: buildPrompt(input, output, expected),
+        output: Output.object({ schema: judgeSchema }),
+      });
+      return {
+        score: gradeScale[judgment.grade],
+        metadata: { grade: judgment.grade, reasoning: judgment.reasoning },
+      };
+    },
+  };
 }
 
 // Register cleanup
@@ -93,5 +129,39 @@ evalite("Knowledge Retrieval", {
         return 0;
       },
     },
+    createLLMJudge(
+      "Answer Relevance",
+      (input, output) => `You are evaluating an AI assistant's answer about the Vercel AI SDK.
+
+Question: ${input}
+
+Answer: ${output}
+
+Grade the answer's relevance (A-E):
+- A: Directly answers the question with accurate, specific information
+- B: Mostly answers the question with minor gaps
+- C: Partially relevant but missing key information
+- D: Tangentially related, doesn't really answer the question
+- E: Completely irrelevant or wrong
+
+Provide your grade and brief reasoning.`
+    ),
+    createLLMJudge(
+      "Helpfulness",
+      (input, output) => `You are evaluating how helpful an AI assistant's answer is for a developer learning the Vercel AI SDK.
+
+Question: ${input}
+
+Answer: ${output}
+
+Grade the helpfulness (A-E):
+- A: Extremely helpful - clear, actionable, with good examples
+- B: Helpful - provides useful guidance
+- C: Somewhat helpful - has useful info but could be clearer
+- D: Minimally helpful - vague or hard to apply
+- E: Not helpful - confusing or unusable
+
+Provide your grade and brief reasoning.`
+    ),
   ],
 });
