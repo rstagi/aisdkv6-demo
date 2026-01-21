@@ -70,6 +70,8 @@ Available tools:
 - recall: Retrieve stored information
 - listMemories: See all stored memories
 
+IMPORTANT: At the start of each conversation, use listMemories to check for any previously stored user preferences or context. This helps you maintain continuity across sessions.
+
 Be helpful, concise, and use tools when appropriate.`,
   tools: { searchKnowledge, remember, recall, listMemories },
 });

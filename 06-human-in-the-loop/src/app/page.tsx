@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { lastAssistantMessageIsCompleteWithApprovalResponses } from "ai";
 
 export default function Chat() {
-  const { messages, sendMessage, status } = useChat();
+  const { messages, sendMessage, status, addToolApprovalResponse } = useChat({
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
+  });
   const [input, setInput] = useState("");
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,6 +93,32 @@ export default function Chat() {
                         <pre className="text-xs bg-white p-2 rounded mt-1 overflow-x-auto">
                           {JSON.stringify(inputData as object, null, 2)}
                         </pre>
+                      )}
+                      {state === "approval-requested" && "approval" in part && (
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: (part as { approval: { id: string } }).approval.id,
+                                approved: true,
+                              })
+                            }
+                            className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              addToolApprovalResponse({
+                                id: (part as { approval: { id: string } }).approval.id,
+                                approved: false,
+                              })
+                            }
+                            className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                          >
+                            Deny
+                          </button>
+                        </div>
                       )}
                     </div>
                   );

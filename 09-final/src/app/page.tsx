@@ -156,7 +156,7 @@ export default function Chat() {
                   if (part.type.startsWith("tool-")) {
                     const toolName = part.type.replace("tool-", "");
                     const state = "state" in part ? part.state : null;
-                    const result = "result" in part ? part.result : null;
+                    const output = "output" in part ? part.output : null;
 
                     if (
                       state === "streaming" ||
@@ -176,13 +176,10 @@ export default function Chat() {
                       );
                     }
 
-                    if (
-                      (state === "output-available" || state === "done") &&
-                      result !== null
-                    ) {
+                    if (state === "output-available" && output !== null) {
                       return (
                         <div key={i} className="my-2">
-                          <ToolResultRenderer result={result} />
+                          <ToolResultRenderer result={output} />
                         </div>
                       );
                     }
