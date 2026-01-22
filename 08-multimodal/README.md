@@ -34,25 +34,22 @@ const handleFileSelect = (e) => {
 
   const reader = new FileReader();
   reader.onload = () => {
-    setAttachments([{
-      type: "image",
-      data: reader.result as string,  // base64 data URL
-      mimeType: file.type,
+    setPendingFiles([{
+      type: "file",
+      url: reader.result as string,  // base64 data URL
+      mediaType: file.type,
     }]);
   };
   reader.readAsDataURL(file);
 };
 ```
 
-### Sending message with attachments
+### Sending message with files
 
 ```tsx
 sendMessage({
   text: input || "What's in this image?",
-  attachments: attachments.map(a => ({
-    contentType: a.mimeType,
-    url: a.data,  // base64 data URL
-  })),
+  files: pendingFiles.length > 0 ? pendingFiles : undefined,
 });
 ```
 
@@ -60,10 +57,11 @@ sendMessage({
 
 ```tsx
 {message.parts?.map((part, i) => {
-  if (part.type === "image") {
-    const imageData = "image" in part ? part.image : null;
-    if (imageData) {
-      return <img src={imageData} alt="Uploaded" />;
+  if (part.type === "file") {
+    const url = "url" in part ? part.url : null;
+    const mediaType = "mediaType" in part ? part.mediaType : null;
+    if (url && mediaType?.startsWith("image/")) {
+      return <img src={url} alt="Uploaded" />;
     }
   }
 })}

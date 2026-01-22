@@ -2,73 +2,88 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
+## Overview
 
-Progressive demo for Vercel AI SDK v6 conference talk. 10 independent projects building a Research Assistant agent from basics to full Next.js app.
+Progressive demo building a Research Assistant agent using Vercel AI SDK v6, from Node.js basics to full Next.js app.
 
 ## Commands
 
-### Infrastructure
+**Infrastructure:**
 ```bash
-docker compose up -d          # Start Postgres (pgvector) + Redis
-docker compose down           # Stop containers
+docker compose up -d  # Start Postgres (pgvector) and Redis
 ```
 
-### Node.js projects (00-04)
+**Each project is independent - cd into folder first:**
 ```bash
-cd <project-folder>
 pnpm install
-pnpm dev                      # Run main script
-pnpm test                     # Run assertions
-pnpm seed                     # (02 only) Seed knowledge base
-pnpm eval:dev                 # (04 only) Evalite UI at localhost:3006
+pnpm dev         # Run Node.js demos or Next.js dev server
+pnpm test        # Run tests (evals in 04, Playwright E2E in Next.js projects)
 ```
 
-### Next.js projects (05-09)
+**Project-specific:**
 ```bash
-cd <project-folder>
-pnpm install
-pnpm dev                      # Next.js at localhost:3000
-pnpm test:e2e                 # Playwright tests
+# 04-evals
+pnpm eval:dev    # Evalite watch mode
+pnpm eval:run    # Run evaluations once
+
+# Next.js projects (05-09)
+pnpm test:e2e    # Run Playwright E2E tests
+```
+
+**Database seeding (02-add-knowledge):**
+```bash
+cd 02-add-knowledge && pnpm tsx src/seed.ts
 ```
 
 ## Architecture
 
-### Project Progression
-- **00-04**: Node.js terminal demos using `tsx`
-- **05-09**: Next.js 15 apps with App Router + Tailwind
+**Project progression:**
+- `00-basics` - Core AI SDK: `generateText`, `streamText`, `Output.object` with Zod
+- `01-simple-agent` - `ToolLoopAgent` with mock tools
+- `02-add-knowledge` - pgvector RAG via `embed()` + vector similarity search
+- `03-add-memory` - Redis persistence for agent memory
+- `04-evals` - Evalite-based LLM evaluations with custom scorers
+- `05-chat-ui` - Next.js with `useChat` + `createAgentUIStreamResponse`
+- `06-human-in-the-loop` - `needsApproval` on tools
+- `07-generative-ui` - Streaming components with structured tool output
+- `08-multimodal` - Image upload handling
+- `09-final` - Complete polished app
 
-### Shared Infrastructure
-- PostgreSQL 16 + pgvector on port 5432 (user: demo, password: demo, db: ai_demo)
-- Redis 7 on port 6379
-- Root `.env` symlinked into each project (contains `GOOGLE_GENERATIVE_AI_API_KEY`)
+**Key patterns:**
 
-### AI SDK v6 Patterns Used
-- `generateText`, `streamText` with `Output.object` for structured output (not `generateObject`)
-- `ToolLoopAgent` class for agent loops
-- `tool()` with `inputSchema` (Zod) and optional `needsApproval: true`
-- `embed`/`embedMany` for vector embeddings
-- `createAgentUIStreamResponse` for Next.js API routes
-- `useChat` from `@ai-sdk/react` for chat UI
-
-### Key Shared Code (05-09)
-- `src/lib/agent.ts` - ToolLoopAgent with tools (searchKnowledge, remember, recall, listMemories)
-- `src/lib/db.ts` - Postgres connection + query helper
-- `src/lib/redis.ts` - Redis memory operations
-- `src/app/api/chat/route.ts` - POST handler using `createAgentUIStreamResponse`
-
-### Database Schema (02-add-knowledge)
-```sql
-CREATE TABLE documents (
-  id SERIAL PRIMARY KEY,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  embedding vector(768)
-);
+Agent creation (v6):
+```typescript
+const agent = new ToolLoopAgent({
+  model: google("gemini-2.5-flash"),
+  instructions: "...",
+  tools: { searchKnowledge, remember, recall },
+});
 ```
 
-## Dependencies
-- Model: Google Gemini (`gemini-2.5-flash`) via `@ai-sdk/google`
-- Embedding: `text-embedding-004`
-- Evals: `evalite` (step 04)
-- Testing: Playwright (steps 05-09)
+Tool definition:
+```typescript
+const myTool = tool({
+  description: "...",
+  inputSchema: z.object({ query: z.string() }),
+  needsApproval: true,  // Optional human-in-the-loop
+  execute: async ({ query }) => ({ result: "..." }),
+});
+```
+
+Next.js API route:
+```typescript
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+  return createAgentUIStreamResponse({ agent, uiMessages: messages });
+}
+```
+
+**Infrastructure:**
+- Postgres with pgvector @ localhost:5432 (user: demo, db: ai_demo)
+- Redis @ localhost:6379
+- Root `.env` contains `GOOGLE_GENERATIVE_AI_API_KEY`, symlinked by projects
+
+**Shared modules across projects:**
+- `db.ts` - Postgres connection pool
+- `redis.ts` - Redis memory storage (remember/recall/listMemories)
+- `agent.ts` - ToolLoopAgent configuration with tools
